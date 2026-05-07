@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture HTML Diagrams"
+  short_description: "Dark HTML architecture diagrams"
+  default_prompt: "Use $architecture-html-diagrams to create a polished dark-themed HTML architecture diagram from my system description."
