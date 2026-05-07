@@ -30,6 +30,18 @@ NODE_STYLES = {
     "connector": {"fill": "#f43f5e", "stroke": "#be123c", "text": "#ffffff"},
 }
 
+DARK_NODE_STYLES = {
+    "actor": {"fill": "rgba(30, 41, 59, 0.62)", "stroke": "#94a3b8", "text": "#f8fafc"},
+    "client": {"fill": "rgba(8, 51, 68, 0.46)", "stroke": "#22d3ee", "text": "#f8fafc"},
+    "service": {"fill": "rgba(6, 78, 59, 0.46)", "stroke": "#34d399", "text": "#f8fafc"},
+    "external": {"fill": "rgba(76, 29, 149, 0.46)", "stroke": "#a78bfa", "text": "#f8fafc"},
+    "decision": {"fill": "rgba(120, 53, 15, 0.50)", "stroke": "#fbbf24", "text": "#f8fafc"},
+    "data": {"fill": "rgba(76, 29, 149, 0.42)", "stroke": "#a78bfa", "text": "#f8fafc"},
+    "queue": {"fill": "rgba(251, 146, 60, 0.30)", "stroke": "#fb923c", "text": "#f8fafc"},
+    "mail": {"fill": "rgba(8, 51, 68, 0.46)", "stroke": "#22d3ee", "text": "#f8fafc"},
+    "connector": {"fill": "rgba(136, 19, 55, 0.50)", "stroke": "#fb7185", "text": "#f8fafc"},
+}
+
 
 @dataclass(frozen=True)
 class Rect:
@@ -293,14 +305,14 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def render_lanes(spec: dict[str, Any], width: float, height: float) -> str:
+def render_lanes(spec: dict[str, Any], width: float, height: float, theme: str) -> str:
     header_h = float(spec.get("headerHeight", 82))
     out: list[str] = []
     for lane in spec.get("lanes", []):
         x = float(lane["x"])
         w = float(lane["w"])
-        header_fill = lane.get("headerFill", "#e5e7eb")
-        body_fill = lane.get("bodyFill", "#f8fafc")
+        header_fill = lane.get("darkHeaderFill" if theme == "dark" else "headerFill", lane.get("headerFill", "#e5e7eb"))
+        body_fill = lane.get("darkBodyFill" if theme == "dark" else "bodyFill", lane.get("bodyFill", "#f8fafc"))
         out.append(f'<rect x="{x:g}" y="0" width="{w:g}" height="{height:g}" fill="{esc(body_fill)}"/>')
         out.append(f'<rect x="{x:g}" y="0" width="{w:g}" height="{header_h:g}" fill="{esc(header_fill)}"/>')
         out.append(f'<text x="{x + w / 2:g}" y="{header_h / 2 + 8:g}" class="lane-title">{esc(lane.get("label", lane["id"]))}</text>')
@@ -312,19 +324,19 @@ def render_lanes(spec: dict[str, Any], width: float, height: float) -> str:
     return "\n".join(out)
 
 
-def render_sections(spec: dict[str, Any]) -> str:
+def render_sections(spec: dict[str, Any], theme: str) -> str:
     out: list[str] = []
     for section in spec.get("sections", []):
         x = float(section["x"])
         y = float(section["y"])
         w = float(section["w"])
         h = float(section["h"])
-        fill = section.get("fill", "#fef3c7")
+        fill = section.get("darkFill" if theme == "dark" else "fill", section.get("fill", "#fef3c7"))
         out.append(f'<rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" fill="{esc(fill)}" opacity="{section.get("opacity", 0.72)}"/>')
     return "\n".join(out)
 
 
-def render_section_labels(spec: dict[str, Any]) -> str:
+def render_section_labels(spec: dict[str, Any], theme: str) -> str:
     out: list[str] = []
     for section in spec.get("sections", []):
         if not section.get("label"):
@@ -334,8 +346,8 @@ def render_section_labels(spec: dict[str, Any]) -> str:
         y = float(box.get("y", section["y"]))
         w = float(box.get("w", 230))
         h = float(box.get("h", 48))
-        fill = box.get("fill", "#ffd91f")
-        stroke = box.get("stroke", "#b58900")
+        fill = box.get("darkFill" if theme == "dark" else "fill", box.get("fill", "#ffd91f"))
+        stroke = box.get("darkStroke" if theme == "dark" else "stroke", box.get("stroke", "#b58900"))
         out.append(f'<rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" fill="{esc(fill)}" stroke="{esc(stroke)}" stroke-width="2"/>')
         for idx, text in enumerate(lines(section["label"])):
             out.append(f'<text x="{x + w / 2:g}" y="{y + h / 2 + 6 + idx * 15:g}" class="section-label">{esc(text)}</text>')
@@ -350,11 +362,13 @@ def text_block(x: float, y: float, text_lines: list[str], klass: str, line_heigh
     return "\n".join(out)
 
 
-def render_node(node: dict[str, Any]) -> str:
+def render_node(node: dict[str, Any], theme: str) -> str:
     rect = rect_from(node)
     shape = str(node.get("shape", "rect"))
     kind = str(node.get("kind", "service"))
-    style = {**NODE_STYLES.get(kind, NODE_STYLES["service"]), **node.get("style", {})}
+    base_styles = DARK_NODE_STYLES if theme == "dark" else NODE_STYLES
+    style_key = "darkStyle" if theme == "dark" else "style"
+    style = {**base_styles.get(kind, base_styles["service"]), **node.get(style_key, node.get("style", {}))}
     label = lines(node.get("label", node["id"]))
     sublabel = lines(node.get("sublabel"))
     rx = float(node.get("rx", 6))
@@ -389,12 +403,15 @@ def render_node(node: dict[str, Any]) -> str:
         outside = node["labelOutside"]
         out.append(text_block(float(outside["x"]), float(outside["y"]), lines(outside["text"]), "outside-label", 14))
     out.append("</g>")
-    return "\n".join(out).replace('class="node-text"', f'class="node-text" style="font-size:{font_size:g}px; fill:{esc(style["text"])}"')
+    svg = "\n".join(out)
+    svg = svg.replace('class="node-text"', f'class="node-text" style="font-size:{font_size:g}px; fill:{esc(style["text"])}"')
+    svg = svg.replace('class="data-text"', f'class="data-text" style="fill:{esc(style["text"])}"')
+    return svg
 
 
-def render_edge(edge: dict[str, Any], nodes: dict[str, Rect]) -> str:
+def render_edge(edge: dict[str, Any], nodes: dict[str, Rect], theme: str) -> str:
     points = route_points(edge, nodes)
-    stroke = edge.get("stroke", "#111827")
+    stroke = edge.get("darkStroke" if theme == "dark" else "stroke", edge.get("stroke", "#d7e3f4" if theme == "dark" else "#111827"))
     marker = "arrow-blue" if edge.get("kind") == "data" else "arrow"
     width = float(edge.get("strokeWidth", 2))
     dash = ' stroke-dasharray="7 5"' if edge.get("dashed") else ""
@@ -405,7 +422,10 @@ def render_edge(edge: dict[str, Any], nodes: dict[str, Rect]) -> str:
         ly = float(edge.get("labelY", midpoint(points)[1] - 8))
         bg = label_rect(edge, points)
         if bg:
-            out.append(f'<rect x="{bg.x:g}" y="{bg.y:g}" width="{bg.w:g}" height="{bg.h:g}" rx="2" fill="{esc(edge.get("labelFill", "#ffffff"))}" opacity="{edge.get("labelOpacity", 0.82)}"/>')
+            default_label_fill = "#0b1120" if theme == "dark" else "#ffffff"
+            label_fill_key = "darkLabelFill" if theme == "dark" else "labelFill"
+            label_fill = edge.get(label_fill_key, edge.get("labelFill", default_label_fill))
+            out.append(f'<rect x="{bg.x:g}" y="{bg.y:g}" width="{bg.w:g}" height="{bg.h:g}" rx="2" fill="{esc(label_fill)}" opacity="{edge.get("labelOpacity", 0.86)}"/>')
         out.append(text_block(lx, ly, label, "edge-label", 14))
     return "\n".join(out)
 
@@ -429,16 +449,50 @@ def render_html(spec: dict[str, Any]) -> str:
     width = float(canvas.get("width", 1800))
     height = float(canvas.get("height", 2600))
     min_width = float(canvas.get("minWidth", min(width, 1300)))
+    theme = str(spec.get("theme", "light"))
     title = spec.get("title", "Swimlane Workflow")
     subtitle = spec.get("subtitle", "")
     meta = "<br>".join(esc(item) for item in lines(spec.get("meta", ["standalone HTML + inline SVG", "validated swimlane renderer"])))
     nodes = {str(node["id"]): rect_from(node) for node in spec.get("nodes", [])}
-    lanes_svg = render_lanes(spec, width, height)
-    sections_svg = render_sections(spec)
-    section_labels_svg = render_section_labels(spec)
-    edges_svg = "\n".join(render_edge(edge, nodes) for edge in spec.get("edges", []))
-    nodes_svg = "\n".join(render_node(node) for node in spec.get("nodes", []))
+    lanes_svg = render_lanes(spec, width, height, theme)
+    sections_svg = render_sections(spec, theme)
+    section_labels_svg = render_section_labels(spec, theme)
+    edges_svg = "\n".join(render_edge(edge, nodes, theme) for edge in spec.get("edges", []))
+    nodes_svg = "\n".join(render_node(node, theme) for node in spec.get("nodes", []))
     cards = render_cards(spec.get("cards", []))
+    dark = theme == "dark"
+    font_family = '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' if dark else "Arial, Helvetica, sans-serif"
+    body_color = "#f8fafc" if dark else "#0f172a"
+    body_background = (
+        "radial-gradient(circle at 12% 16%, rgba(34,211,238,.09), transparent 26%), "
+        "radial-gradient(circle at 86% 18%, rgba(167,139,250,.08), transparent 24%), #050816"
+        if dark
+        else "linear-gradient(180deg, #eef4fb 0%, #dce6f1 100%)"
+    )
+    subtitle_color = "#94a3b8" if dark else "#334155"
+    meta_color = "#64748b" if dark else "#475569"
+    shell_border = "rgba(148,163,184,.22)" if dark else "#8aa0b7"
+    shell_background = "rgba(2,6,23,.78)" if dark else "#fff"
+    shell_shadow = "0 24px 80px rgba(0,0,0,.42)" if dark else "0 22px 70px rgba(15, 23, 42, .18)"
+    lane_title_fill = "#f8fafc" if dark else "#000"
+    lane_line = "rgba(148,163,184,.34)" if dark else "#8797ab"
+    row_line = "rgba(148,163,184,.24)" if dark else "#c2cedb"
+    edge_label_fill = "#f8fafc" if dark else "#111827"
+    outside_label_fill = "#cbd5e1" if dark else "#111827"
+    card_background = "rgba(15,23,42,.68)" if dark else "rgba(255,255,255,.72)"
+    card_border = "rgba(148,163,184,.18)" if dark else "#c7d2de"
+    card_text = "#94a3b8" if dark else "#334155"
+    svg_base = "#050816" if dark else "#ffffff"
+    arrow_fill = "#d7e3f4" if dark else "#111827"
+    arrow_blue_fill = "#22d3ee" if dark else "#2563eb"
+    grid_def = (
+        '<pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">'
+        '<path d="M 34 0 L 0 0 0 34" fill="none" stroke="rgba(38,53,88,.46)" stroke-width=".8"/>'
+        "</pattern>"
+        if dark
+        else ""
+    )
+    grid_rect = f'<rect width="{width:g}" height="{height:g}" fill="url(#grid)" opacity=".9"/>' if dark else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -446,46 +500,47 @@ def render_html(spec: dict[str, Any]) -> str:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{esc(title)}</title>
+  {"<link href=\"https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap\" rel=\"stylesheet\">" if dark else ""}
   <style>
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       min-height: 100vh;
       padding: 28px;
-      font-family: Arial, Helvetica, sans-serif;
-      color: #0f172a;
-      background: linear-gradient(180deg, #eef4fb 0%, #dce6f1 100%);
+      font-family: {font_family};
+      color: {body_color};
+      background: {body_background};
     }}
     .page {{ max-width: {max(width + 56, 1320):.0f}px; margin: 0 auto; }}
     .header {{ display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; margin-bottom: 18px; }}
     h1 {{ margin: 0 0 8px; font-size: 28px; line-height: 1.15; letter-spacing: 0; }}
-    .subtitle {{ margin: 0; color: #334155; font-size: 15px; line-height: 1.45; }}
-    .meta {{ color: #475569; font-size: 12px; line-height: 1.45; text-align: right; white-space: nowrap; }}
+    .subtitle {{ margin: 0; color: {subtitle_color}; font-size: 15px; line-height: 1.45; }}
+    .meta {{ color: {meta_color}; font-size: 12px; line-height: 1.45; text-align: right; white-space: nowrap; }}
     .diagram-shell {{
       overflow-x: auto;
-      border: 1px solid #8aa0b7;
+      border: 1px solid {shell_border};
       border-radius: 8px;
-      background: #fff;
-      box-shadow: 0 22px 70px rgba(15, 23, 42, .18);
+      background: {shell_background};
+      box-shadow: {shell_shadow};
     }}
     svg {{ display: block; width: 100%; min-width: {min_width:.0f}px; height: auto; }}
-    .lane-title {{ font-size: 21px; font-weight: 800; text-anchor: middle; fill: #000; }}
-    .lane-line {{ stroke: #8797ab; stroke-width: 1.25; }}
-    .lane-line.strong {{ stroke: #64748b; stroke-width: 1.4; }}
-    .row-line {{ stroke: #c2cedb; stroke-width: 1.1; }}
+    .lane-title {{ font-size: 21px; font-weight: 800; text-anchor: middle; fill: {lane_title_fill}; }}
+    .lane-line {{ stroke: {lane_line}; stroke-width: 1.25; }}
+    .lane-line.strong {{ stroke: {lane_line}; stroke-width: 1.4; }}
+    .row-line {{ stroke: {row_line}; stroke-width: 1.1; }}
     .section-label {{ font-size: 16px; font-weight: 800; text-anchor: middle; fill: #000; }}
     .edge {{ fill: none; stroke-linecap: square; stroke-linejoin: miter; }}
-    .edge-label {{ font-size: 13px; font-weight: 700; fill: #111827; text-anchor: middle; }}
+    .edge-label {{ font-size: 13px; font-weight: 700; fill: {edge_label_fill}; text-anchor: middle; }}
     .node-text {{ font-weight: 800; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }}
     .node-text.small {{ font-size: 10px; }}
     .node-subtext {{ font-size: 11px; font-weight: 700; fill: rgba(255,255,255,.9); text-anchor: middle; dominant-baseline: middle; }}
-    .data-text {{ font-size: 12px; font-weight: 800; fill: #111827; text-anchor: middle; }}
-    .outside-label {{ font-size: 12px; font-weight: 700; fill: #111827; text-anchor: middle; }}
+    .data-text {{ font-size: 12px; font-weight: 800; fill: {edge_label_fill}; text-anchor: middle; }}
+    .outside-label {{ font-size: 12px; font-weight: 700; fill: {outside_label_fill}; text-anchor: middle; }}
     .cards {{ display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }}
-    .cards article {{ background: rgba(255,255,255,.72); border: 1px solid #c7d2de; border-radius: 8px; padding: 14px 16px; min-height: 112px; }}
+    .cards article {{ background: {card_background}; border: 1px solid {card_border}; border-radius: 8px; padding: 14px 16px; min-height: 112px; }}
     .cards h2 {{ margin: 0 0 8px; font-size: 14px; }}
-    .cards p {{ margin: 0 0 6px; color: #334155; font-size: 12px; line-height: 1.45; }}
-    .footer {{ color: #475569; font-size: 12px; text-align: center; margin: 18px 0 0; }}
+    .cards p {{ margin: 0 0 6px; color: {card_text}; font-size: 12px; line-height: 1.45; }}
+    .footer {{ color: {meta_color}; font-size: 12px; text-align: center; margin: 18px 0 0; }}
     @media (max-width: 760px) {{
       body {{ padding: 18px; }}
       .header {{ align-items: flex-start; flex-direction: column; }}
@@ -508,17 +563,19 @@ def render_html(spec: dict[str, Any]) -> str:
         <title id="diagram-title">{esc(title)}</title>
         <desc id="diagram-desc">{esc(spec.get("description", subtitle or title))}</desc>
         <defs>
+          {grid_def}
           <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-            <path d="M 0 1 L 11 6 L 0 11 z" fill="#111827"/>
+            <path d="M 0 1 L 11 6 L 0 11 z" fill="{arrow_fill}"/>
           </marker>
           <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-            <path d="M 0 1 L 11 6 L 0 11 z" fill="#2563eb"/>
+            <path d="M 0 1 L 11 6 L 0 11 z" fill="{arrow_blue_fill}"/>
           </marker>
           <filter id="shadow" x="-20%" y="-30%" width="140%" height="170%">
             <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#0f172a" flood-opacity=".22"/>
           </filter>
         </defs>
-        <rect width="{width:g}" height="{height:g}" fill="#ffffff"/>
+        <rect width="{width:g}" height="{height:g}" fill="{svg_base}"/>
+        {grid_rect}
         {lanes_svg}
         {sections_svg}
         {edges_svg}

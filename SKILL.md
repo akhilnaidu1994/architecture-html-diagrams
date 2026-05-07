@@ -5,7 +5,7 @@ description: Create polished standalone HTML pages with inline SVG architecture 
 
 # Architecture HTML Diagrams
 
-Create a single self-contained `.html` file containing an SVG architecture or process diagram. Default architecture output should use the dark, grid-backed technical theme. Swimlane/process output may use a reference-matched light lane theme when the user provides a light workflow example. The output should be visually polished enough for docs, proposals, design reviews, screenshots, and management reviews.
+Create a single self-contained `.html` file containing an SVG architecture or process diagram. Default architecture and swimlane output should use the dark, grid-backed technical theme. Use a reference-matched light lane theme only when the user explicitly asks for that light style. The output should be visually polished enough for docs, proposals, design reviews, screenshots, and management reviews.
 
 ## Workflow
 

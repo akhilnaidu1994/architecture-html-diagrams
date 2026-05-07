@@ -12,6 +12,7 @@ Strict mode fails on invalid node references, nodes outside lanes, node overlaps
 
 ## Required Spec Sections
 
+- `theme`: use `"dark"` by default to match the dark-grid architecture style; use `"light"` only when the user explicitly asks to match a light swimlane reference.
 - `canvas`: `width`, `height`, and `minWidth`.
 - `headerHeight`: lane header height in pixels.
 - `lanes`: lane columns with `id`, `label`, `x`, `w`, `headerFill`, and `bodyFill`.
@@ -39,6 +40,7 @@ Strict mode fails on invalid node references, nodes outside lanes, node overlaps
 
 ## Visual Rules
 
+- Default swimlane output should still use the skill's dark technical canvas: near-black SVG background, faint grid, translucent lane bodies, thin neon strokes, and compact monospace labels.
 - Lane headers should be strong and readable; body fills should stay low-contrast.
 - Decision diamonds should be large enough for two-line labels.
 - Databases need extra height because the cylinder and its label are validated together.
