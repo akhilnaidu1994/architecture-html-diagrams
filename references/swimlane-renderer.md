@@ -1,0 +1,46 @@
+# Swimlane Renderer
+
+Use `scripts/render_swimlane_diagram.py` when the requested output is a lane-based workflow, BPMN-like process map, case-management flow, actor/system interaction diagram, or process architecture diagram.
+
+## Command
+
+```bash
+python3 architecture-html-diagrams/scripts/render_swimlane_diagram.py spec.json --out diagram.html --strict
+```
+
+Strict mode fails on invalid node references, nodes outside lanes, node overlaps, diagonal edges, edge routes through unrelated nodes, edge labels overlapping nodes, and labels likely too wide for their boxes.
+
+## Required Spec Sections
+
+- `canvas`: `width`, `height`, and `minWidth`.
+- `headerHeight`: lane header height in pixels.
+- `lanes`: lane columns with `id`, `label`, `x`, `w`, `headerFill`, and `bodyFill`.
+- `rowLines`: horizontal separators between major process bands.
+- `sections`: colored row/region bands with optional yellow `labelBox`.
+- `nodes`: workflow steps with `id`, `lane`, `shape`, `kind`, `label`, `x`, `y`, `w`, and `h`.
+- `edges`: relationships with `from`, `to`, optional `fromPort`, `toPort`, `via`, and `label`.
+
+## Node Shapes
+
+- `rect`: actors, systems, services, and external applications.
+- `decision`: diamond decision nodes.
+- `database`: cylinder with label below it.
+- `queue`: broker/server/event component.
+- `connector`: small connector badge.
+
+## Routing Rules
+
+- Always reference source and target components by node ID.
+- Use ports (`left`, `right`, `top`, `bottom`) to control exact arrow attachment.
+- Use orthogonal `via` points to reserve open lanes and avoid crossing nodes.
+- Keep labels in open space. Set `labelX` and `labelY` when the midpoint would collide with a node or another label.
+- Route long cross-lane arrows through empty horizontal bands instead of through dense decision clusters.
+- For Yes/No branches, put branch labels beside the first clear segment after the decision, not inside the diamond.
+
+## Visual Rules
+
+- Lane headers should be strong and readable; body fills should stay low-contrast.
+- Decision diamonds should be large enough for two-line labels.
+- Databases need extra height because the cylinder and its label are validated together.
+- Section labels should sit on top of the relevant row, not over arrows.
+- Prefer increasing canvas height over compressing stacked decisions.
