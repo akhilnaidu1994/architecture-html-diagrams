@@ -8,7 +8,7 @@ Use `scripts/render_swimlane_diagram.py` when the requested output is a lane-bas
 python3 architecture-html-diagrams/scripts/render_swimlane_diagram.py spec.json --out diagram.html --strict
 ```
 
-Strict mode fails on invalid node references, nodes outside lanes, node overlaps, diagonal edges, edge routes through unrelated nodes, edge labels overlapping nodes, labels likely too wide for their boxes, tiny arrow stubs, excessive bends, and declared primary-flow alignment failures.
+Strict mode fails on invalid node references, nodes outside lanes, node overlaps, diagonal edges, edge routes through unrelated nodes, edge labels overlapping nodes, labels likely too wide for their boxes, labels placed on top of their own arrow path, tiny arrow stubs, excessive bends, and declared primary-flow alignment failures.
 
 ## Required Spec Sections
 
@@ -39,6 +39,7 @@ Strict mode fails on invalid node references, nodes outside lanes, node overlaps
 - Use orthogonal `via` points to reserve open lanes and avoid crossing nodes.
 - Do not use tiny jogs such as 10px horizontal/vertical corrections before an arrowhead. Move the boxes instead. Default strict validation requires 28px of terminal runway and 18px for every segment.
 - Keep labels in open space. Set `labelX` and `labelY` when the midpoint would collide with a node or another label.
+- Prefer `labelSegment`, `labelSide`, and `labelOffset` over raw `labelX`/`labelY`. Put labels above/below horizontal segments and left/right of vertical segments; strict mode rejects labels that sit on top of their own arrow.
 - Route long cross-lane arrows through empty horizontal bands instead of through dense decision clusters.
 - For Yes/No branches, put branch labels beside the first clear segment after the decision, not inside the diamond.
 

@@ -199,6 +199,41 @@ def midpoint(points: list[tuple[float, float]]) -> tuple[float, float]:
     return points[-1]
 
 
+def segment_midpoint(a: tuple[float, float], b: tuple[float, float]) -> tuple[float, float]:
+    return (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+
+
+def label_anchor(edge: dict[str, Any], points: list[tuple[float, float]]) -> tuple[float, float]:
+    if "labelX" in edge or "labelY" in edge:
+        return (
+            float(edge.get("labelX", midpoint(points)[0])),
+            float(edge.get("labelY", midpoint(points)[1] - 8)),
+        )
+    segments = list(zip(points, points[1:]))
+    if not segments:
+        return midpoint(points)
+    if "labelSegment" in edge:
+        index = max(0, min(int(edge["labelSegment"]), len(segments) - 1))
+    else:
+        index = max(range(len(segments)), key=lambda item: segment_length(*segments[item]))
+    a, b = segments[index]
+    x, y = segment_midpoint(a, b)
+    side = str(edge.get("labelSide", "auto"))
+    offset = float(edge.get("labelOffset", 22))
+    horizontal = abs(a[1] - b[1]) < 0.1
+    if side == "auto":
+        side = "above" if horizontal else "right"
+    if side == "above":
+        y -= offset
+    elif side == "below":
+        y += offset
+    elif side == "left":
+        x -= offset
+    elif side == "right":
+        x += offset
+    return x, y
+
+
 def segment_hits_rect(a: tuple[float, float], b: tuple[float, float], rect: Rect, pad: float = 6) -> bool:
     x1, y1 = a
     x2, y2 = b
@@ -226,8 +261,7 @@ def label_rect(edge: dict[str, Any], points: list[tuple[float, float]]) -> Rect 
     if not label:
         return None
     text_lines = lines(label)
-    x = float(edge.get("labelX", midpoint(points)[0]))
-    y = float(edge.get("labelY", midpoint(points)[1] - 8))
+    x, y = label_anchor(edge, points)
     width = max(30, max((len(item) for item in text_lines), default=0) * 7.2 + 16)
     height = len(text_lines) * 16 + 8
     return Rect(str(edge.get("id", "edge-label")), x - width / 2, y - 13, width, height)
@@ -247,6 +281,7 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     min_terminal = float(spec.get("validation", {}).get("minTerminalSegmentLength", 28))
     max_bends = int(spec.get("validation", {}).get("maxBends", 4))
     align_tolerance = float(spec.get("validation", {}).get("alignmentTolerance", 3))
+    label_clearance = float(spec.get("validation", {}).get("labelClearance", 6))
 
     lanes = {str(lane["id"]): rect_from({**lane, "y": 0, "h": height}) for lane in spec.get("lanes", [])}
     nodes = {str(node["id"]): rect_from(node) for node in spec.get("nodes", [])}
@@ -347,6 +382,10 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
             errors.append(f"Edge '{edge_id}' should be vertically straight; align source and target center X.")
         label = label_rect(edge, points)
         if label:
+            if not edge.get("allowLabelOnPath"):
+                for a, b in segments:
+                    if segment_hits_rect(a, b, label, label_clearance):
+                        errors.append(f"Edge '{edge_id}' label overlaps its own arrow path. Move the label to a clear side lane.")
             for node_id, rect in nodes.items():
                 if node_id in edge.get("ignoreLabelIntersections", []):
                     continue
@@ -469,8 +508,7 @@ def render_edge(edge: dict[str, Any], nodes: dict[str, Rect], theme: str) -> str
     out = [f'<path d="{path_d(points)}" class="edge" stroke="{esc(stroke)}" stroke-width="{width:g}"{dash} marker-end="url(#{marker})"/>']
     label = lines(edge.get("label"))
     if label:
-        lx = float(edge.get("labelX", midpoint(points)[0]))
-        ly = float(edge.get("labelY", midpoint(points)[1] - 8))
+        lx, ly = label_anchor(edge, points)
         bg = label_rect(edge, points)
         if bg:
             default_label_fill = "#0b1120" if theme == "dark" else "#ffffff"

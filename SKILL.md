@@ -59,7 +59,7 @@ Always create one browser-openable `.html` file:
 - For swimlanes, keep every node assigned to a lane and route all arrows from source node IDs to target node IDs with explicit ports plus orthogonal `via` points when needed.
 - Align primary swimlane sequences before routing: vertical chains must share the same center X, horizontal handoffs must share the same center Y, and primary edges should use `preferStraight` so strict validation rejects avoidable 90-degree bends.
 - Leave visible arrow runway between shapes. Do not place diamonds, boxes, or databases so close that the arrowhead or first segment becomes a tiny stub.
-- Put arrow labels on small dark label pills or in open lanes, never on top of node borders.
+- Put arrow labels on small dark label pills in open lanes, never on node borders or directly on top of the arrow path. Prefer renderer label controls (`labelSegment`, `labelSide`, `labelOffset`) over raw coordinates.
 - Use dashed lines only for secondary, auth, control-plane, replication, or planned/future flows.
 - For nodes with transparent fills, draw an opaque `fill="#0b1120"` rect beneath the styled rect to hide arrows behind it.
 - Put legends outside the largest boundary. Increase the SVG height if needed.
