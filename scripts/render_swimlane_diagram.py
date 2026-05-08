@@ -161,6 +161,11 @@ def route_points(edge: dict[str, Any], nodes: dict[str, Rect]) -> list[tuple[flo
 
     x1, y1 = start
     x2, y2 = end
+    snap = float(edge.get("snapTolerance", 8))
+    if from_port in {"left", "right"} and to_port in {"left", "right"} and abs(y1 - y2) <= snap:
+        return [start, (x2, y1)]
+    if from_port in {"top", "bottom"} and to_port in {"top", "bottom"} and abs(x1 - x2) <= snap:
+        return [start, (x1, y2)]
     if abs(x1 - x2) < 0.1 or abs(y1 - y2) < 0.1:
         return [start, end]
     if from_port in {"left", "right"}:
@@ -212,6 +217,10 @@ def segment_hits_rect(a: tuple[float, float], b: tuple[float, float], rect: Rect
     return False
 
 
+def segment_length(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot(b[0] - a[0], b[1] - a[1])
+
+
 def label_rect(edge: dict[str, Any], points: list[tuple[float, float]]) -> Rect | None:
     label = edge.get("label")
     if not label:
@@ -234,6 +243,10 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
     node_gap = float(spec.get("validation", {}).get("minNodeGap", 16))
     lane_padding = float(spec.get("validation", {}).get("lanePadding", 8))
     edge_padding = float(spec.get("validation", {}).get("edgePadding", 5))
+    min_segment = float(spec.get("validation", {}).get("minSegmentLength", 18))
+    min_terminal = float(spec.get("validation", {}).get("minTerminalSegmentLength", 28))
+    max_bends = int(spec.get("validation", {}).get("maxBends", 4))
+    align_tolerance = float(spec.get("validation", {}).get("alignmentTolerance", 3))
 
     lanes = {str(lane["id"]): rect_from({**lane, "y": 0, "h": height}) for lane in spec.get("lanes", [])}
     nodes = {str(node["id"]): rect_from(node) for node in spec.get("nodes", [])}
@@ -271,6 +284,22 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
             if left.overlaps(right, node_gap):
                 errors.append(f"Nodes '{left_id}' and '{right_id}' overlap or are closer than {node_gap}px.")
 
+    for group in spec.get("alignmentGroups", []):
+        axis = str(group.get("axis", "x"))
+        group_nodes = [str(item) for item in group.get("nodes", [])]
+        if len(group_nodes) < 2:
+            continue
+        missing = [node_id for node_id in group_nodes if node_id not in nodes]
+        if missing:
+            errors.append(f"Alignment group '{group.get('id', 'unnamed')}' references missing nodes: {', '.join(missing)}.")
+            continue
+        values = [nodes[node_id].cx if axis == "x" else nodes[node_id].cy for node_id in group_nodes]
+        if max(values) - min(values) > float(group.get("tolerance", align_tolerance)):
+            errors.append(
+                f"Alignment group '{group.get('id', 'unnamed')}' is not {axis}-aligned within "
+                f"{group.get('tolerance', align_tolerance)}px: {', '.join(group_nodes)}."
+            )
+
     for edge in spec.get("edges", []):
         edge_id = str(edge.get("id", f"{edge.get('from')}->{edge.get('to')}"))
         src_id = str(edge.get("from"))
@@ -286,14 +315,36 @@ def validate(spec: dict[str, Any]) -> tuple[list[str], list[str]]:
         except ValueError as exc:
             errors.append(f"Edge '{edge_id}' has an invalid port: {exc}")
             continue
-        for a, b in zip(points, points[1:]):
+        bends = max(0, len(points) - 2)
+        if bends > int(edge.get("maxBends", max_bends)):
+            errors.append(f"Edge '{edge_id}' has {bends} bends. Reposition nodes or reserve a cleaner routing lane.")
+        segments = list(zip(points, points[1:]))
+        for segment_index, (a, b) in enumerate(segments):
             if abs(a[0] - b[0]) >= 0.1 and abs(a[1] - b[1]) >= 0.1:
                 errors.append(f"Edge '{edge_id}' contains a diagonal segment. Use orthogonal via points.")
+            length = segment_length(a, b)
+            terminal_segment = segment_index == 0 or segment_index == len(segments) - 1
+            if length < float(edge.get("minSegmentLength", min_segment)) and not (terminal_segment and edge.get("allowShortTerminal")):
+                errors.append(f"Edge '{edge_id}' has a {length:.1f}px segment. Add spacing or align nodes to avoid tiny arrow stubs.")
             for node_id, rect in nodes.items():
                 if node_id in {src_id, dst_id} or node_id in edge.get("ignoreIntersections", []):
                     continue
                 if segment_hits_rect(a, b, rect, edge_padding):
                     errors.append(f"Edge '{edge_id}' route crosses unrelated node '{node_id}'.")
+        if len(points) >= 2 and not edge.get("allowShortTerminal"):
+            first_len = segment_length(points[0], points[1])
+            last_len = segment_length(points[-2], points[-1])
+            if first_len < float(edge.get("minTerminalSegmentLength", min_terminal)):
+                errors.append(f"Edge '{edge_id}' starts with only {first_len:.1f}px before a bend. Move the source/target or align ports.")
+            if last_len < float(edge.get("minTerminalSegmentLength", min_terminal)):
+                errors.append(f"Edge '{edge_id}' ends with only {last_len:.1f}px before the arrowhead. Add room before the target.")
+        straight = edge.get("preferStraight")
+        if straight and len(points) > 2:
+            errors.append(f"Edge '{edge_id}' is marked preferStraight={straight!r} but has bends.")
+        if straight == "horizontal" and abs(points[0][1] - points[-1][1]) > float(edge.get("straightTolerance", align_tolerance)):
+            errors.append(f"Edge '{edge_id}' should be horizontally straight; align source and target center Y.")
+        if straight == "vertical" and abs(points[0][0] - points[-1][0]) > float(edge.get("straightTolerance", align_tolerance)):
+            errors.append(f"Edge '{edge_id}' should be vertically straight; align source and target center X.")
         label = label_rect(edge, points)
         if label:
             for node_id, rect in nodes.items():

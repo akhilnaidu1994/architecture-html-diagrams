@@ -8,7 +8,7 @@ Use `scripts/render_swimlane_diagram.py` when the requested output is a lane-bas
 python3 architecture-html-diagrams/scripts/render_swimlane_diagram.py spec.json --out diagram.html --strict
 ```
 
-Strict mode fails on invalid node references, nodes outside lanes, node overlaps, diagonal edges, edge routes through unrelated nodes, edge labels overlapping nodes, and labels likely too wide for their boxes.
+Strict mode fails on invalid node references, nodes outside lanes, node overlaps, diagonal edges, edge routes through unrelated nodes, edge labels overlapping nodes, labels likely too wide for their boxes, tiny arrow stubs, excessive bends, and declared primary-flow alignment failures.
 
 ## Required Spec Sections
 
@@ -20,6 +20,7 @@ Strict mode fails on invalid node references, nodes outside lanes, node overlaps
 - `sections`: colored row/region bands with optional yellow `labelBox`.
 - `nodes`: workflow steps with `id`, `lane`, `shape`, `kind`, `label`, `x`, `y`, `w`, and `h`.
 - `edges`: relationships with `from`, `to`, optional `fromPort`, `toPort`, `via`, and `label`.
+- `alignmentGroups`: optional but recommended for primary top-to-bottom or left-to-right chains. Declare node IDs that must share the same center `x` or `y`.
 
 ## Node Shapes
 
@@ -33,7 +34,10 @@ Strict mode fails on invalid node references, nodes outside lanes, node overlaps
 
 - Always reference source and target components by node ID.
 - Use ports (`left`, `right`, `top`, `bottom`) to control exact arrow attachment.
+- Align primary sequences on the same centerline before drawing arrows. For example, stack rules-engine decisions on the same center `x`; place left-to-right handoffs on the same center `y`.
+- Mark primary edges with `preferStraight: "vertical"` or `preferStraight: "horizontal"` so strict validation rejects avoidable 90-degree bends.
 - Use orthogonal `via` points to reserve open lanes and avoid crossing nodes.
+- Do not use tiny jogs such as 10px horizontal/vertical corrections before an arrowhead. Move the boxes instead. Default strict validation requires 28px of terminal runway and 18px for every segment.
 - Keep labels in open space. Set `labelX` and `labelY` when the midpoint would collide with a node or another label.
 - Route long cross-lane arrows through empty horizontal bands instead of through dense decision clusters.
 - For Yes/No branches, put branch labels beside the first clear segment after the decision, not inside the diamond.
